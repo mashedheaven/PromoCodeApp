@@ -249,25 +249,6 @@ We welcome contributions! Please see [CONTRIBUTING.md](PromoCodeApp/CONTRIBUTING
 - PR process
 - Testing requirements
 
-## 📝 License
-
-PromoCodeApp is licensed under the MIT License. See [LICENSE](PromoCodeApp/LICENSE) for details.
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/mashedheaven/PromoCodeApp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/mashedheaven/PromoCodeApp/discussions)
-- **Email**: support@promocodeapp.com
-
-## 🙏 Credits
-
-Built with:
-- [Jetpack Compose](https://developer.android.com/jetpack/compose) - Modern UI toolkit
-- [Room Database](https://developer.android.com/training/data-storage/room) - Local storage
-- [Firebase](https://firebase.google.com) - Cloud messaging
-- [Supabase](https://supabase.com) - Backend infrastructure
-- [Hilt](https://dagger.dev/hilt) - Dependency injection
-- [Google Play Services](https://developers.google.com/android/guides/overview) - Location services
 
 ## 🎯 Market Opportunity
 
