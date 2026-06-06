@@ -8,9 +8,21 @@ import { NearMe } from './pages/NearMe';
 import { Memberships } from './pages/Memberships';
 import { Settings } from './pages/Settings';
 import { useSettingsStore } from './stores/settingsStore';
+import { requestNotificationPermissions } from './services/notifications';
+import { initializeBackgroundGeolocation } from './services/backgroundLocation';
 
 function App() {
-  const { theme } = useSettingsStore();
+  const { theme, notificationsEnabled, defaultRadius } = useSettingsStore();
+
+  useEffect(() => {
+    if (notificationsEnabled) {
+      requestNotificationPermissions().then((granted) => {
+        if (granted) {
+          initializeBackgroundGeolocation(defaultRadius);
+        }
+      });
+    }
+  }, [notificationsEnabled, defaultRadius]);
 
   useEffect(() => {
     document.documentElement.style.colorScheme = theme;

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Coupon, DiscountType, SortOption, ViewMode } from '../types';
 import * as db from '../services/database';
+import { scheduleCouponExpiration, cancelCouponExpiration } from '../services/notifications';
 
 interface CouponState {
   coupons: Coupon[];
@@ -51,18 +52,23 @@ export const useCouponStore = create<CouponState>((set, get) => ({
   },
 
   addCoupon: async (coupon) => {
-    await db.addCoupon(coupon);
+    const id = await db.addCoupon(coupon);
     await get().loadCoupons();
+    const newCoupon = await db.getCouponById(id);
+    if (newCoupon) scheduleCouponExpiration(newCoupon);
   },
 
   updateCoupon: async (id, updates) => {
     await db.updateCoupon(id, updates);
     await get().loadCoupons();
+    const updatedCoupon = await db.getCouponById(id);
+    if (updatedCoupon) scheduleCouponExpiration(updatedCoupon);
   },
 
   deleteCoupon: async (id) => {
     await db.deleteCoupon(id);
     await get().loadCoupons();
+    cancelCouponExpiration(id);
   },
 
   toggleFavorite: async (id) => {
