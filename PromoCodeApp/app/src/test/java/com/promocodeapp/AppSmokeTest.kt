@@ -19,11 +19,16 @@ class AppSmokeTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** Room writes happen off the main thread; wait for the UI to catch up. */
+    private fun awaitText(text: String) = compose.waitUntil(5_000) {
+        compose.onAllNodes(androidx.compose.ui.test.hasText(text)).fetchSemanticsNodes().isNotEmpty()
+    }
+
     @Test
     fun `add a coupon then find use and delete it`() {
-        compose.onNodeWithText("No coupons yet").assertIsDisplayed()
+        awaitText("No coupons yet")
 
-        compose.onNodeWithText("Add coupon").performClick()
+        compose.onNodeWithText("Add coupon", useUnmergedTree = true).performClick()
         compose.onNodeWithText("New coupon").assertIsDisplayed()
 
         // Saving an empty form explains what is missing instead of saving junk.
@@ -36,7 +41,7 @@ class AppSmokeTest {
         compose.onNodeWithText("Percent").performTextInput("20")
         compose.onNodeWithText("Save").performClick()
 
-        compose.waitUntil(5_000) { compose.onAllNodes(androidx.compose.ui.test.hasText("20% OFF")).fetchSemanticsNodes().isNotEmpty() }
+        awaitText("20% OFF")
         compose.onNodeWithText("Target").assertIsDisplayed()
         compose.onNodeWithText("SAVE20").assertIsDisplayed()
         compose.onNodeWithText("No expiry").assertIsDisplayed()
@@ -45,18 +50,18 @@ class AppSmokeTest {
         compose.onNodeWithText("Target").performClick()
         compose.onNodeWithContentDescription("Copy code").assertIsDisplayed()
         compose.onNodeWithText("Mark as used").performClick()
-        compose.onNodeWithText("Mark as unused").assertIsDisplayed()
+        awaitText("Mark as unused")
         compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithText("You have no active coupons.").assertIsDisplayed()
+        awaitText("You have no active coupons.")
         compose.onNodeWithText("Used").performClick()
         compose.onNodeWithText("SAVE20").assertIsDisplayed()
 
         // Delete with confirmation.
         compose.onNodeWithText("Target").performClick()
         compose.onNodeWithContentDescription("Delete").performClick()
-        compose.onNodeWithText("Delete coupon?").assertIsDisplayed()
+        awaitText("Delete coupon?")
         compose.onNodeWithText("Delete").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodes(androidx.compose.ui.test.hasText("No coupons yet")).fetchSemanticsNodes().isNotEmpty() }
+        awaitText("No coupons yet")
     }
 
     @Test
