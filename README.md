@@ -1,262 +1,81 @@
-# PromoCodeApp - Location-Based Promo Code & Membership Tracking
+# PromoCode
 
-A comprehensive Android application that helps users manage promotional codes, track memberships, and receive location-based notifications when they're near relevant stores. Never miss a deal again!
+An Android app that remembers your promo codes, coupons and memberships, and
+**reminds you when you arrive somewhere you can use them**.
 
-## 🎯 Project Vision
+You enter a coupon once (type it or scan its barcode), attach the stores where
+it works, and forget about it. When you walk into one of those stores your phone
+shows the code. Coupons about to expire and memberships about to renew get a
+reminder too.
 
-PromoCodeApp addresses a significant gap where consumers struggle to remember available discounts and deals when physically near relevant stores. By combining coupon management with intelligent location-based geofencing, the app sends timely notifications to help users capture savings opportunities at precisely the right moment and place.
+The app works fully offline. Signing in to an optional Supabase backend adds
+backup and sync between devices.
 
-## ✨ Key Features
+## Features
 
-- **📱 Coupon Management**: Create, organize, and track promotional codes
-- **📍 Location-Based Alerts**: Geofencing with automatic notifications when near stores
-- **💾 Offline Support**: Full access to coupons without internet connection
-- **🔔 Smart Notifications**: Multiple notification types (proximity, expiration, membership)
-- **🏪 Membership Tracking**: Track gym memberships, subscriptions, and loyalty programs
-- **🎨 Modern UI**: Beautiful Material 3 design with Jetpack Compose
-- **⚡ Fast & Responsive**: Built with modern Android Jetpack components
+| | |
+|---|---|
+| **Coupons** | Store, code, discount (percent, amount, buy-one-get-one, free shipping), expiry date, minimum spend, category, notes. Search, filters (active, favorites, expiring soon, used, expired, archived) and sorting. Copy or share a code in one tap. |
+| **Barcodes** | Scan a barcode or QR code with Google's code scanner (no camera permission needed). The coupon screen redraws it so the cashier can scan your phone. |
+| **Places & nearby alerts** | Save stores by current location, address search or a tap on the map (map optional). Each place gets a geofence; arriving shows the coupons and memberships you can use there. |
+| **Memberships** | Gyms, subscriptions, loyalty cards: member number (scannable), fee, billing cycle, renewal date. Shows your total yearly spend and reminds you before renewals. |
+| **Reminders** | "Expiring soon" for coupons, renewal reminders for memberships, each sent once per date. Expired coupons are archived after a week. |
+| **Backup & sync** | Optional e-mail account. Edits made offline sync when back online; changes on one device appear on the others. |
 
-## 🏗️ Architecture
+## How the location alerts stay reliable and cheap
 
-The application follows a clean, layered architecture:
+* Geofencing is done by Google Play services, which batches location checks;
+  the app never polls GPS and never uploads your location.
+* Only places with a usable coupon or an active membership are watched.
+  Using or archiving the last coupon for a store stops its geofence.
+* Android allows 100 geofences per app. With more places than that, the
+  nearest 99 are watched plus one "refresh" fence; leaving it re-picks the nearest set.
+* A two-hour cooldown per place and "already inside" tracking stop repeat
+  alerts from GPS jitter or from living next door to a store.
+* Geofences are restored after a reboot or app update, and re-checked daily.
 
-```
-Presentation (Jetpack Compose)
-       ↓
-Domain (Business Logic)
-       ↓
-Data (Room + Supabase)
-       ↓
-Services (FCM, Geofencing)
-```
-
-**See [ARCHITECTURE.md](PromoCodeApp/ARCHITECTURE.md) for detailed architecture documentation.**
-
-## 🛠️ Technology Stack
-
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Language | Kotlin | 1.9.21 |
-| UI Framework | Jetpack Compose | 2023.10 |
-| Local Database | Room | 2.6.1 |
-| Remote Backend | Supabase | PostgreSQL |
-| API Client | Retrofit | 2.10.0 |
-| DI Container | Hilt | 2.48 |
-| Notifications | Firebase FCM | 32.7.0 |
-| Location | Google Play Services | 18.2.0 |
-| Async | Coroutines | 1.7.3 |
-
-## 📁 Project Structure
+## Project layout
 
 ```
-PromoCodeApp/
-├── PromoCodeApp/                 # Android application
-│   ├── app/
-│   │   └── src/main/java/com/promocodeapp/
-│   │       ├── data/             # Data layer (Room, API)
-│   │       ├── domain/           # Business logic
-│   │       ├── presentation/     # UI (Jetpack Compose)
-│   │       ├── service/          # Background services
-│   │       ├── util/             # Utilities
-│   │       ├── di/               # Dependency injection
-│   │       └── ui/theme/         # Material 3 theme
-│   ├── gradle/                   # Gradle configuration
-│   ├── build.gradle.kts          # Root Gradle config
-│   └── README.md                 # Detailed documentation
-├── README.md                      # This file
-└── GETTING_STARTED.md            # Quick start guide
+PromoCodeApp/                 Android project (open this folder in Android Studio)
+  app/src/main/java/com/promocodeapp/
+    core/                     Domain models and rules (no Android dependencies)
+    data/local/               Room database
+    data/remote/              Supabase auth + REST client, encrypted session store
+    data/repository/          Repositories used by the UI
+    sync/                     Two-way sync engine
+    location/                 Geofence planning, registration, alerts
+    notifications/            Channels, notifications, reminder rules, FCM
+    work/                     WorkManager jobs (sync, daily reminders)
+    ui/                       Jetpack Compose screens
+  app/src/test/               Unit, database, sync and UI tests (Robolectric)
+  supabase/schema.sql         Backend schema with row-level security
+docs/                         Setup guide, architecture notes, original concept
 ```
 
-## 🚀 Quick Start
+## Getting started
 
-### Prerequisites
-- Android Studio Giraffe or later
-- JDK 17+
-- Android SDK 34
-- Android device or emulator (API 24+)
-
-### Setup Steps
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/mashedheaven/PromoCodeApp.git
-   cd PromoCodeApp
-   ```
-
-2. **Open in Android Studio**
-   - File > Open > Select `PromoCodeApp` folder
-
-3. **Configure Firebase**
-   - Get `google-services.json` from Firebase Console
-   - Place in `PromoCodeApp/app/` directory
-
-4. **Configure Supabase**
-   - Update `BASE_URL` in `app/src/main/java/com/promocodeapp/di/AppModule.kt`
-   - Run SQL migrations (see [SUPABASE_SETUP.md](PromoCodeApp/SUPABASE_SETUP.md))
-
-5. **Build & Run**
-   ```bash
-   ./gradlew build
-   ./gradlew installDebug
-   ```
-
-**See [GETTING_STARTED.md](PromoCodeApp/GETTING_STARTED.md) for detailed setup instructions.**
-
-## 📚 Documentation
-
-| Document | Purpose |
-|----------|---------|
-| [IMPLEMENTATION_SUMMARY.md](PromoCodeApp/IMPLEMENTATION_SUMMARY.md) | Overview of what's been built |
-| [ARCHITECTURE.md](PromoCodeApp/ARCHITECTURE.md) | Detailed architecture & design patterns |
-| [GETTING_STARTED.md](PromoCodeApp/GETTING_STARTED.md) | Step-by-step setup guide |
-| [BACKEND_QUICK_REFERENCE.md](PromoCodeApp/BACKEND_QUICK_REFERENCE.md) | 5-minute backend integration quick start |
-| [BACKEND_INTEGRATION.md](PromoCodeApp/BACKEND_INTEGRATION.md) | Complete backend integration guide |
-| [BACKEND_INTEGRATION_SUMMARY.md](PromoCodeApp/BACKEND_INTEGRATION_SUMMARY.md) | Backend implementation summary |
-| [BACKEND_INTEGRATION_TESTS.md](PromoCodeApp/BACKEND_INTEGRATION_TESTS.md) | Backend testing guide with 12+ test scenarios |
-| [FIREBASE_SETUP.md](PromoCodeApp/FIREBASE_SETUP.md) | Firebase configuration guide |
-| [SUPABASE_SETUP.md](PromoCodeApp/SUPABASE_SETUP.md) | Supabase backend setup with SQL migrations |
-| [CONTRIBUTING.md](PromoCodeApp/CONTRIBUTING.md) | Development guidelines |
-| [PromoCodeApp/README.md](PromoCodeApp/README.md) | Comprehensive project documentation |
-
-## 📊 Project Status
-
-### MVP Implementation: ✅ COMPLETE
-### Backend Integration: ✅ COMPLETE
-
-**Completed**:
-- ✅ Project structure & Gradle configuration
-- ✅ Room database with 7 entities and sync support
-- ✅ Domain models & repository interfaces
-- ✅ Data repository implementations
-- ✅ Jetpack Compose UI screens
-- ✅ ViewModels with state management
-- ✅ Hilt dependency injection
-- ✅ Firebase integration with FCM
-- ✅ Geofencing implementation
-- ✅ Material 3 theme & design
-- ✅ **Supabase backend integration**
-- ✅ **Offline-first synchronization**
-- ✅ **Background sync service with WorkManager**
-- ✅ **Authentication repository**
-- ✅ **Comprehensive backend documentation**
-- ✅ **Testing guide with 12+ test scenarios**
-
-**In Progress**:
-- 🔄 Authentication UI screens
-- 🔄 End-to-end testing
-
-**Planned**:
-- 📋 Barcode/QR code scanning
-- 📋 Membership management screens
-- 📋 iOS port
-- 📋 Advanced features (price comparison, social sharing)
-
-## 🔄 Development Phases
-
-### Phase 1: MVP (Current - Weeks 1-4) ✅
-Core coupon management, geofencing, notifications
-
-### Phase 2: Enhanced Features (Weeks 5-8)
-Barcode scanning, membership tracking, offline sync
-
-### Phase 3: iOS Development (Months 3-4)
-Swift + SwiftUI port with feature parity
-
-### Phase 4: API Integration (Months 5-6)
-CouponAPI, Voucherify, cashback tracking
-
-### Phase 5: Advanced Features (Ongoing)
-Price comparison, social sharing, community features
-
-## 🔐 Permissions
-
-The app requires the following permissions:
-
-- **Location**: ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION, ACCESS_BACKGROUND_LOCATION
-- **Network**: INTERNET, ACCESS_NETWORK_STATE
-- **Notifications**: POST_NOTIFICATIONS (Android 13+)
-- **Camera**: CAMERA (future: barcode scanning)
-- **Storage**: READ/WRITE_EXTERNAL_STORAGE
-
-## 🧪 Testing
+Requirements: Android Studio (recent stable), JDK 17+, a device or emulator
+with Google Play services, Android 8.0 (API 26) or newer.
 
 ```bash
-# Run unit tests
-./gradlew test
-
-# Run instrumented tests
-./gradlew connectedAndroidTest
-
-# Run with coverage
-./gradlew testDebugUnitTestCoverage
+cd PromoCodeApp
+./gradlew installDebug
 ```
 
-## 🐛 Troubleshooting
+That's all you need for the full offline app. To enable cloud sync, the map,
+or server pushes, see [docs/SETUP.md](docs/SETUP.md).
 
-### Geofences not triggering?
-1. Check location permission in Settings
-2. Enable location services
-3. Use radius ≥ 100 meters
-4. See [PromoCodeApp/README.md](PromoCodeApp/README.md#troubleshooting)
+## Tests
 
-### Notifications not appearing?
-1. Verify Firebase is configured correctly
-2. Check notification channels in app settings
-3. See [FIREBASE_SETUP.md](PromoCodeApp/FIREBASE_SETUP.md#troubleshooting)
-
-### Database sync issues?
-1. Verify Supabase credentials in AppModule
-2. Check internet connectivity
-3. See [SUPABASE_SETUP.md](PromoCodeApp/SUPABASE_SETUP.md#troubleshooting)
-
-## 📖 Code Examples
-
-### Creating a Coupon
-```kotlin
-viewModel.createCoupon(
-    code = "SAVE20",
-    merchantName = "Target",
-    discountType = DiscountType.Percentage(20.0),
-    discountValue = 20.0,
-    expirationDate = System.currentTimeMillis() + (30 * 24 * 60 * 60 * 1000)
-)
+```bash
+cd PromoCodeApp
+./gradlew testDebugUnitTest
 ```
 
-### Creating a Geofence
-```kotlin
-val geofence = geofenceManager.createGeofence(
-    id = "coupon_123",
-    latitude = 40.7128,
-    longitude = -74.0060,
-    radiusInMeters = 150f
-)
-```
+The suite runs on the JVM (no device needed) and covers the domain rules,
+the database, nearby-alert decisions, a two-device sync against a fake
+Supabase server (conflicts, deletions, token refresh, account switching), and
+a UI smoke test of the main flow.
 
-### Receiving Location Changes
-```kotlin
-// In ViewModel
-val coupons: Flow<List<Coupon>> = couponRepository.getUserCoupons(userId)
-
-// In Compose
-val coupons by viewModel.coupons.collectAsStateWithLifecycle()
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](PromoCodeApp/CONTRIBUTING.md) for:
-- Code style guidelines
-- Commit message format
-- PR process
-- Testing requirements
-
-
-## 🎯 Market Opportunity
-
-The global coupon and discount app market is expanding rapidly as consumers seek to maximize savings. Location-based services have proven effective at driving engagement, with businesses reporting significant increases in foot traffic from proximity-based offers. PromoCodeApp combines these powerful trends to capture significant market value.
-
----
-
-**Last Updated**: November 15, 2025  
-**Version**: 1.0.0 (MVP)  
-**Maintainer**: Gogul (@mashedheaven)  
-**Repository**: [GitHub](https://github.com/mashedheaven/PromoCodeApp)
+More: [architecture](docs/ARCHITECTURE.md) · [requirements and roadmap](docs/concept/requirements.txt)

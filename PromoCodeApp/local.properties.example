@@ -1,0 +1,12 @@
+# Copy to local.properties (git-ignored). Everything below is optional:
+# the app is fully usable offline with none of it set.
+
+# Android SDK location (Android Studio writes this for you).
+# sdk.dir=/path/to/Android/sdk
+
+# Cloud backup & sync (see docs/SETUP.md and supabase/schema.sql).
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+
+# Interactive map in the place editor (Maps SDK for Android key).
+MAPS_API_KEY=
