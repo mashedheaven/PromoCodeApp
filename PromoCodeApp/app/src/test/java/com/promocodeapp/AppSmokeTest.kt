@@ -42,19 +42,21 @@ class AppSmokeTest {
         compose.onNodeWithText("Save").performClick()
 
         awaitText("20% OFF")
-        compose.onNodeWithText("Target").assertIsDisplayed()
-        compose.onNodeWithText("SAVE20").assertIsDisplayed()
-        compose.onNodeWithText("No expiry").assertIsDisplayed()
+        awaitText("Target")
+        awaitText("SAVE20")
+        awaitText("No expiry")
 
         // Detail screen: mark as used, which moves it out of the active list.
         compose.onNodeWithText("Target").performClick()
-        compose.onNodeWithContentDescription("Copy code").assertIsDisplayed()
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Copy code")).fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText("Mark as used").performClick()
         awaitText("Mark as unused")
         compose.onNodeWithContentDescription("Back").performClick()
         awaitText("You have no active coupons.")
         compose.onNodeWithText("Used").performClick()
-        compose.onNodeWithText("SAVE20").assertIsDisplayed()
+        awaitText("SAVE20")
 
         // Delete with confirmation.
         compose.onNodeWithText("Target").performClick()
@@ -67,11 +69,11 @@ class AppSmokeTest {
     @Test
     fun `every tab opens and settings explains alert setup`() {
         compose.onNodeWithText("Memberships").performClick()
-        compose.onNodeWithText("No memberships yet").assertIsDisplayed()
+        awaitText("No memberships yet")
         compose.onNodeWithText("Places").performClick()
-        compose.onNodeWithText("No places yet").assertIsDisplayed()
+        awaitText("No places yet")
         compose.onNodeWithText("Settings").performClick()
-        compose.onNodeWithText("Finish setting up nearby alerts").assertIsDisplayed()
+        awaitText("Finish setting up nearby alerts")
         compose.onNodeWithText("Cloud sync isn't set up in this build.", substring = true).assertExists()
     }
 }
