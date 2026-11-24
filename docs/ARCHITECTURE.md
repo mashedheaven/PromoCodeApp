@@ -115,3 +115,32 @@ Updates (low). Every notification deep-links (`promocode://coupon/<id>`,
 `supabase/schema.sql` was validated against PostgreSQL 16 with a stand-in for
 Supabase's `auth` schema: idempotent re-runs, row ownership, stale writes
 ignored, cursor advancing, cross-user writes rejected, anonymous access denied.
+
+## iOS app
+
+`ios/` contains a SwiftUI app (iOS 17+) with the same features, backend and
+sync rules. All platform-independent logic is in the `PromoCodeCore` Swift
+package, a port of the Android rules: models, `CouponQuery`,
+`ReminderPlanner`, `GeofencePlanner`, `ProximityPolicy`, retail barcode
+encoding, the `Library` of edit operations, the Supabase client and
+`SyncEngine`. It builds and tests on Linux, and one of its tests decodes a row
+exactly as the Android app uploads it to keep the two wire formats identical.
+
+The app layer is thin: SwiftData implements PromoCodeCore's `RecordStore`,
+the session lives in the Keychain (this device only, readable after first
+unlock so background region events can sync), and `AppModel` triggers side
+effects after every change: geofence update, reminder rescheduling, and a
+debounced sync.
+
+Platform differences:
+
+* **Regions:** iOS monitors at most 20, so the planner keeps the nearest 19
+  plus a refresh region. Newly added regions are checked with `requestState`,
+  matching Android's "alert if already inside".
+* **Reminders:** iOS has no reliable daily job, so reminders are scheduled
+  ahead as dated local notifications (iOS keeps up to 64). A `ReminderLedger`
+  records which have fired so a reminder whose window has already started
+  fires once. A background refresh task (`BGAppRefreshTask`) and every app
+  launch roll the schedule forward and sync.
+* **Background launch:** `AppModel` is built in the app delegate at launch, so
+  the location manager exists when iOS wakes the app for a region event.

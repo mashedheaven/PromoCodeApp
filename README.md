@@ -1,6 +1,6 @@
 # PromoCode
 
-An Android app that remembers your promo codes, coupons and memberships, and
+An Android and iOS app that remembers your promo codes, coupons and memberships, and
 **reminds you when you arrive somewhere you can use them**.
 
 You enter a coupon once (type it or scan its barcode), attach the stores where
@@ -9,7 +9,7 @@ shows the code. Coupons about to expire and memberships about to renew get a
 reminder too.
 
 The app works fully offline. Signing in to an optional Supabase backend adds
-backup and sync between devices.
+backup and sync between devices, including between Android and iPhone.
 
 ## Features
 
@@ -50,6 +50,7 @@ PromoCodeApp/                 Android project (open this folder in Android Studi
     ui/                       Jetpack Compose screens
   app/src/test/               Unit, database, sync and UI tests (Robolectric)
   supabase/schema.sql         Backend schema with row-level security
+ios/                          iOS app (SwiftUI) and the PromoCodeCore Swift package
 docs/                         Setup guide, architecture notes, original concept
 ```
 
@@ -66,14 +67,26 @@ cd PromoCodeApp
 That's all you need for the full offline app. To enable cloud sync, the map,
 or server pushes, see [docs/SETUP.md](docs/SETUP.md).
 
+For the iPhone app (needs a Mac with Xcode 16+), see [ios/README.md](ios/README.md):
+
+```bash
+cd ios
+xcodegen generate
+open PromoCode.xcodeproj
+```
+
 ## Tests
 
 ```bash
 cd PromoCodeApp
 ./gradlew testDebugUnitTest
+swift test --package-path ios/PromoCodeCore
 ```
 
-The suite runs on the JVM (no device needed) and covers the domain rules,
+CI runs both on every pull request, and builds the Android app and the iOS
+app (for the simulator).
+
+The Android suite runs on the JVM (no device needed) and covers the domain rules,
 the database, nearby-alert decisions, a two-device sync against a fake
 Supabase server (conflicts, deletions, token refresh, account switching), and
 a UI smoke test of the main flow.
