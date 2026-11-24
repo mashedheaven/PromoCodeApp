@@ -31,6 +31,7 @@ struct MembershipListView: View {
                         .tint(.primary)
                 }
             }
+            .readableContentWidth()
             .overlay {
                 if all.isEmpty {
                     EmptyStateView(systemImage: "person.text.rectangle", title: "No memberships yet",

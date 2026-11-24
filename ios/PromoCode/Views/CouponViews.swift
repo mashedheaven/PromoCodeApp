@@ -11,77 +11,108 @@ struct CouponListView: View {
     @State private var sort: CouponSort = .expiry
     @State private var editing: CouponEditTarget?
     @State private var alertsReady = true
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
+        @Bindable var router = model.router
+        if sizeClass == .regular {
+            // Wide screens (an open iPhone Duo, iPad): coupons and the chosen one side by side.
+            NavigationSplitView {
+                couponList(selection: selectedCoupon)
+            } detail: {
+                NavigationStack {
+                    if case .detail(let id) = router.couponPath.last {
+                        CouponDetailView(couponId: id).id(id)
+                    } else {
+                        EmptyStateView(systemImage: "tag", title: "No coupon selected",
+                                       message: "Choose a coupon to see its code and where to use it.")
+                    }
+                }
+            }
+        } else {
+            NavigationStack(path: $router.couponPath) {
+                couponList(selection: nil)
+                    .navigationDestination(for: CouponRoute.self) { route in
+                        switch route {
+                        case .detail(let id): CouponDetailView(couponId: id)
+                        }
+                    }
+            }
+        }
+    }
+
+    /// The split view's selection, kept in the router so links and notifications can open a coupon.
+    private var selectedCoupon: Binding<CouponRoute?> {
+        Binding(get: { model.router.couponPath.last },
+                set: { model.router.couponPath = $0.map { [$0] } ?? [] })
+    }
+
+    private func couponList(selection: Binding<CouponRoute?>?) -> some View {
         @Bindable var router = model.router
         let today = model.today
         let query = CouponQuery(text: search, filter: router.couponFilter, sort: sort, placeId: router.placeFilter)
         let rows = query.apply(model.coupons, today: today)
         let placeNames = Dictionary(model.places.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
 
-        NavigationStack(path: $router.couponPath) {
-            List {
-                Section {
-                    filterBar(placeName: router.placeFilter.flatMap { placeNames[$0] })
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
+        return List(selection: selection) {
+            Section {
+                filterBar(placeName: router.placeFilter.flatMap { placeNames[$0] })
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
+            if !alertsReady && !model.places.isEmpty {
+                Section { AlertsBanner { router.tab = .settings } }
+            }
+            ForEach(rows) { coupon in
+                NavigationLink(value: CouponRoute.detail(coupon.id)) {
+                    CouponRowView(coupon: coupon, today: today, placeNames: coupon.placeIds.compactMap { placeNames[$0] })
                 }
-                if !alertsReady && !model.places.isEmpty {
-                    Section { AlertsBanner { router.tab = .settings } }
+                .swipeActions(edge: .leading) {
+                    Button { model.library.setFavorite(coupon.id, !coupon.isFavorite) } label: {
+                        Label(coupon.isFavorite ? "Unfavorite" : "Favorite", systemImage: coupon.isFavorite ? "heart.slash" : "heart")
+                    }
+                    .tint(.pink)
                 }
-                ForEach(rows) { coupon in
-                    NavigationLink(value: CouponRoute.detail(coupon.id)) {
-                        CouponRowView(coupon: coupon, today: today, placeNames: coupon.placeIds.compactMap { placeNames[$0] })
+                .swipeActions(edge: .trailing) {
+                    Button { model.library.setUsed(coupon.id, !coupon.isUsed) } label: {
+                        Label(coupon.isUsed ? "Unused" : "Used", systemImage: "checkmark.circle")
                     }
-                    .swipeActions(edge: .leading) {
-                        Button { model.library.setFavorite(coupon.id, !coupon.isFavorite) } label: {
-                            Label(coupon.isFavorite ? "Unfavorite" : "Favorite", systemImage: coupon.isFavorite ? "heart.slash" : "heart")
-                        }
-                        .tint(.pink)
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button { model.library.setUsed(coupon.id, !coupon.isUsed) } label: {
-                            Label(coupon.isUsed ? "Unused" : "Used", systemImage: "checkmark.circle")
-                        }
-                        .tint(.green)
-                    }
+                    .tint(.green)
                 }
             }
-            .listStyle(.insetGrouped)
-            .overlay {
-                if rows.isEmpty {
-                    if model.coupons.isEmpty {
-                        EmptyStateView(systemImage: "tag", title: "No coupons yet",
-                                       message: "Add a promo code and the stores where it works. You'll get a reminder when you're nearby.")
-                    } else if !search.trimmingCharacters(in: .whitespaces).isEmpty {
-                        EmptyStateView(systemImage: "magnifyingglass", title: "No results", message: "No coupons match \"\(search)\".")
-                    } else {
-                        EmptyStateView(systemImage: "tray", title: "Nothing here", message: router.couponFilter.emptyMessage)
-                    }
-                }
-            }
-            .searchable(text: $search, prompt: "Store, code or notes")
-            .navigationTitle("Coupons")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Picker("Sort", selection: $sort) {
-                            ForEach(CouponSort.allCases, id: \.self) { Text($0.label).tag($0) }
-                        }
-                    } label: { Label("Sort", systemImage: "arrow.up.arrow.down") }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { editing = .new } label: { Label("Add coupon", systemImage: "plus") }
-                }
-            }
-            .navigationDestination(for: CouponRoute.self) { route in
-                switch route {
-                case .detail(let id): CouponDetailView(couponId: id)
-                }
-            }
-            .sheet(item: $editing) { target in CouponEditView(target: target) }
-            .task(id: model.permissionsRevision) { alertsReady = await alertsAreReady() }
         }
+        .listStyle(.insetGrouped)
+        .overlay {
+            if rows.isEmpty {
+                if model.coupons.isEmpty {
+                    EmptyStateView(systemImage: "tag", title: "No coupons yet",
+                                   message: "Add a promo code and the stores where it works. You'll get a reminder when you're nearby.")
+                } else if !search.trimmingCharacters(in: .whitespaces).isEmpty {
+                    EmptyStateView(systemImage: "magnifyingglass", title: "No results", message: "No coupons match \"\(search)\".")
+                } else {
+                    EmptyStateView(systemImage: "tray", title: "Nothing here", message: router.couponFilter.emptyMessage)
+                }
+            }
+        }
+        // In the split view the automatic placement hides the field; pin it under the title.
+        .searchable(text: $search,
+                    placement: selection == nil ? .automatic : .navigationBarDrawer(displayMode: .always),
+                    prompt: "Store, code or notes")
+        .navigationTitle("Coupons")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Menu {
+                    Picker("Sort", selection: $sort) {
+                        ForEach(CouponSort.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                } label: { Label("Sort", systemImage: "arrow.up.arrow.down") }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button { editing = .new } label: { Label("Add coupon", systemImage: "plus") }
+            }
+        }
+        .sheet(item: $editing) { target in CouponEditView(target: target) }
+        .task(id: model.permissionsRevision) { alertsReady = await alertsAreReady() }
     }
 
     private func filterBar(placeName: String?) -> some View {
@@ -241,6 +272,8 @@ struct CouponDetailView: View {
                     .confirmationDialog("Delete coupon?", isPresented: $confirmDelete, titleVisibility: .visible) {
                         Button("Delete", role: .destructive) {
                             model.library.deleteCoupon(coupon.id)
+                            // In the split view there's nothing to dismiss; clear the selection instead.
+                            model.router.couponPath.removeAll()
                             dismiss()
                         }
                     } message: {

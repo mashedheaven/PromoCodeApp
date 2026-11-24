@@ -29,6 +29,7 @@ struct PlaceListView: View {
                 }
                 .tint(.primary)
             }
+            .readableContentWidth()
             .overlay {
                 if model.places.isEmpty {
                     EmptyStateView(systemImage: "mappin.and.ellipse", title: "No places yet",

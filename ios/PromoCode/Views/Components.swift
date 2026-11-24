@@ -21,6 +21,30 @@ extension View {
     }
 }
 
+extension View {
+    /// Keeps a list or form at a comfortable width on wide screens such as an
+    /// open iPhone Duo, instead of stretching rows across the whole display.
+    func readableContentWidth(_ maxWidth: CGFloat = 680) -> some View {
+        modifier(ReadableContentWidth(maxWidth: maxWidth))
+    }
+}
+
+private struct ReadableContentWidth: ViewModifier {
+    let maxWidth: CGFloat
+    @State private var width: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        Group {
+            if width > maxWidth + 40 {
+                content.contentMargins(.horizontal, (width - maxWidth) / 2, for: .scrollContent)
+            } else {
+                content  // phone widths keep the system margins
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+}
+
 extension Day {
     /// Noon avoids the date shifting when converting across time zones.
     var noonDate: Date { date(hour: 12, in: .current) }
@@ -46,6 +70,7 @@ struct EmptyStateView: View {
 
     var body: some View {
         ContentUnavailableView(title, systemImage: systemImage, description: Text(message))
+            .frame(maxWidth: 440)  // keeps lines short on wide screens
     }
 }
 

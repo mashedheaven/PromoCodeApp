@@ -52,6 +52,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .readableContentWidth()
             .navigationTitle("Settings")
         }
     }
@@ -191,6 +192,7 @@ struct AccountView: View {
                 Section { Text(message).foregroundStyle(isError ? .red : .secondary) }
             }
         }
+        .readableContentWidth()
         .navigationTitle("Backup & sync")
     }
 
