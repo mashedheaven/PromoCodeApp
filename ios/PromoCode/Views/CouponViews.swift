@@ -25,9 +25,9 @@ struct CouponListView: View {
                     filterBar(placeName: router.placeFilter.flatMap { placeNames[$0] })
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
-                    if !alertsReady && !model.places.isEmpty {
-                        AlertsBanner { router.tab = .settings }
-                    }
+                }
+                if !alertsReady && !model.places.isEmpty {
+                    Section { AlertsBanner { router.tab = .settings } }
                 }
                 ForEach(rows) { coupon in
                     NavigationLink(value: CouponRoute.detail(coupon.id)) {
@@ -154,7 +154,11 @@ struct CouponRowView: View {
                     Text(expiry.text).foregroundStyle(expiry.color)
                 }
                 if !placeNames.isEmpty {
-                    Label(placeNames.joined(separator: ", "), systemImage: "mappin").foregroundStyle(.secondary).lineLimit(1)
+                    HStack(spacing: 2) {
+                        Image(systemName: "mappin")
+                        Text(placeNames.joined(separator: ", ")).lineLimit(1)
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
             .font(.caption.weight(.medium))
@@ -234,6 +238,14 @@ struct CouponDetailView: View {
                 Button(coupon.isUsed ? "Mark as unused" : "Mark as used") { model.library.setUsed(coupon.id, !coupon.isUsed) }
                 Button(coupon.isArchived ? "Unarchive" : "Archive") { model.library.setArchived(coupon.id, !coupon.isArchived) }
                 Button("Delete coupon", role: .destructive) { confirmDelete = true }
+                    .confirmationDialog("Delete coupon?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                        Button("Delete", role: .destructive) {
+                            model.library.deleteCoupon(coupon.id)
+                            dismiss()
+                        }
+                    } message: {
+                        Text("The \(coupon.merchant) coupon will be removed from all your devices.")
+                    }
             }
         }
         .navigationTitle(coupon.merchant)
@@ -248,14 +260,6 @@ struct CouponDetailView: View {
             }
         }
         .sheet(item: $editing) { CouponEditView(target: $0) }
-        .confirmationDialog("Delete coupon?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                model.library.deleteCoupon(coupon.id)
-                dismiss()
-            }
-        } message: {
-            Text("The \(coupon.merchant) coupon will be removed from all your devices.")
-        }
     }
 
     private func currency(_ c: Coupon) -> String {
@@ -306,6 +310,8 @@ struct CouponEditView: View {
     @State private var barcode: ScannedCode?
     @State private var placeIds: [String] = []
     @State private var showErrors = false
+    /// A second tap on Save while the sheet closes must not create a duplicate.
+    @State private var saved = false
     @State private var scanning = false
     @State private var pickingPlaces = false
 
@@ -342,6 +348,7 @@ struct CouponEditView: View {
                             TextField(kind == .percent ? "Percent" : "Amount", text: $value).keyboardType(.decimalPad)
                             if kind == .percent { Text("%").foregroundStyle(.secondary) }
                         }
+                        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                         if showErrors, let e = valueError { ErrorText(e) }
                     }
                     TextField("Minimum purchase (optional)", text: $minPurchase).keyboardType(.decimalPad)
@@ -374,6 +381,7 @@ struct CouponEditView: View {
                     TextField("Notes (optional)", text: $notes, axis: .vertical).lineLimit(2...6)
                 }
             }
+            .keyboardDismissable()
             .navigationTitle(target == .new ? "New coupon" : "Edit coupon")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -418,6 +426,7 @@ struct CouponEditView: View {
     }
 
     private func save() {
+        guard !saved else { return }
         showErrors = true
         guard merchantError == nil, valueError == nil, minPurchaseError == nil else { return }
         let amount = Money.parse(value) ?? 0
@@ -444,6 +453,7 @@ struct CouponEditView: View {
         c.barcode = keep ? barcode?.value : nil
         c.barcodeFormat = keep ? barcode?.format : nil
         c.placeIds = placeIds
+        saved = true
         model.library.save(c)
         dismiss()
     }
@@ -487,6 +497,7 @@ struct PlacePicker: View {
                             if selected.contains(place.id) { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
                         }
                     }
+                    .tint(.primary)
                 }
                 Button { creating = true } label: { Label("New place", systemImage: "plus") }
             }

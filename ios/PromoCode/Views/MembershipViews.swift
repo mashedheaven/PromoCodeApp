@@ -28,6 +28,7 @@ struct MembershipListView: View {
                 }
                 ForEach(all) { m in
                     Button { editing = MembershipTarget(id: m.id) } label: { MembershipRowView(membership: m, today: today) }
+                        .tint(.primary)
                 }
             }
             .overlay {
@@ -117,6 +118,8 @@ struct MembershipEditView: View {
     @State private var isActive = true
     @State private var placeIds: [String] = []
     @State private var showErrors = false
+    /// A second tap on Save while the sheet closes must not create a duplicate.
+    @State private var saved = false
     @State private var scanning = false
     @State private var pickingPlaces = false
     @State private var confirmDelete = false
@@ -131,7 +134,10 @@ struct MembershipEditView: View {
                     if showErrors && organization.trimmingCharacters(in: .whitespaces).isEmpty { ErrorText("Enter the organization") }
                     Picker("Type", selection: $type) { ForEach(MembershipType.allCases, id: \.self) { Text($0.label).tag($0) } }
                     HStack {
-                        TextField("Member number (optional)", text: $memberNumber).font(.body.monospaced())
+                        TextField("Member number (optional)", text: $memberNumber)
+                            .font(.body.monospaced())
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
                         Button { scanning = true } label: { Image(systemName: "barcode.viewfinder") }.accessibilityLabel("Scan card")
                     }
                 }
@@ -144,10 +150,11 @@ struct MembershipEditView: View {
                     Toggle(billing == .NONE ? "Has an end date" : "Next renewal", isOn: $hasRenewal)
                     if hasRenewal {
                         DatePicker(billing == .NONE ? "Valid until" : "Renews on", selection: $renewsOn, displayedComponents: .date)
-                    }
-                    Picker("Remind me", selection: $reminderDays) {
-                        ForEach([0, 1, 3, 7, 14, 30], id: \.self) { d in
-                            Text(d == 0 ? "Never" : d == 1 ? "1 day before" : "\(d) days before").tag(d)
+                        // Only meaningful when there's a date to remind about.
+                        Picker("Remind me", selection: $reminderDays) {
+                            ForEach([0, 1, 3, 7, 14, 30], id: \.self) { d in
+                                Text(d == 0 ? "Never" : d == 1 ? "1 day before" : "\(d) days before").tag(d)
+                            }
                         }
                     }
                     Toggle("Active", isOn: $isActive)
@@ -169,9 +176,20 @@ struct MembershipEditView: View {
                     TextField("Optional", text: $notes, axis: .vertical).lineLimit(2...6)
                 }
                 if original != nil {
-                    Section { Button("Delete membership", role: .destructive) { confirmDelete = true } }
+                    Section {
+                        Button("Delete membership", role: .destructive) { confirmDelete = true }
+                            .confirmationDialog("Delete membership?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                                Button("Delete", role: .destructive) {
+                                    if let id = original?.id { model.library.deleteMembership(id) }
+                                    dismiss()
+                                }
+                            } message: {
+                                Text("\(organization) will be removed from all your devices.")
+                            }
+                    }
                 }
             }
+            .keyboardDismissable()
             .navigationTitle(original == nil ? "New membership" : "Edit membership")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -180,14 +198,6 @@ struct MembershipEditView: View {
             }
             .sheet(isPresented: $scanning) { ScannerSheet { memberNumber = $0.value } }
             .sheet(isPresented: $pickingPlaces) { PlacePicker(selected: $placeIds, suggestedName: organization) }
-            .confirmationDialog("Delete membership?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    if let id = original?.id { model.library.deleteMembership(id) }
-                    dismiss()
-                }
-            } message: {
-                Text("\(organization) will be removed from all your devices.")
-            }
             .onAppear(perform: load)
         }
     }
@@ -211,6 +221,7 @@ struct MembershipEditView: View {
     }
 
     private func save() {
+        guard !saved else { return }
         showErrors = true
         let org = organization.trimmingCharacters(in: .whitespaces)
         guard !org.isEmpty, feeError == nil else { return }
@@ -225,6 +236,7 @@ struct MembershipEditView: View {
         m.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : notes.trimmingCharacters(in: .whitespacesAndNewlines)
         m.isActive = isActive
         m.placeIds = placeIds
+        saved = true
         model.library.save(m)
         dismiss()
     }

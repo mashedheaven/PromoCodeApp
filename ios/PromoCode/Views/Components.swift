@@ -6,6 +6,21 @@ import UIKit
 import Vision
 import VisionKit
 
+extension View {
+    /// Number pads have no return key, so give edit forms a way to close the keyboard.
+    func keyboardDismissable() -> some View {
+        scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+            }
+    }
+}
+
 extension Day {
     /// Noon avoids the date shifting when converting across time zones.
     var noonDate: Date { date(hour: 12, in: .current) }

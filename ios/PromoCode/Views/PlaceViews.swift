@@ -27,6 +27,7 @@ struct PlaceListView: View {
                         Text("\(place.radiusMeters) m").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                .tint(.primary)
             }
             .overlay {
                 if model.places.isEmpty {
@@ -76,8 +77,12 @@ struct PlaceEditView: View {
     @State private var busy = false
     @State private var message: String?
     @State private var showErrors = false
+    /// A second tap on Save while the sheet closes must not create a duplicate.
+    @State private var saved = false
     @State private var confirmDelete = false
     @State private var camera: MapCameraPosition = .automatic
+    /// Set while the location prompt is up, so granting it finishes the job.
+    @State private var awaitingPermission = false
 
     var body: some View {
         NavigationStack {
@@ -123,24 +128,32 @@ struct PlaceEditView: View {
                     Text("A larger radius is more reliable but alerts you earlier. 150 m suits most stores.")
                 }
                 if original != nil {
-                    Section { Button("Delete place", role: .destructive) { confirmDelete = true } }
+                    Section {
+                        Button("Delete place", role: .destructive) { confirmDelete = true }
+                            .confirmationDialog("Delete place?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                                Button("Delete", role: .destructive) {
+                                    if let id = original?.id { model.library.deletePlace(id) }
+                                    dismiss()
+                                }
+                            } message: {
+                                Text("Coupons and memberships linked to \(name) are kept, but you'll no longer be alerted here.")
+                            }
+                    }
                 }
             }
+            .keyboardDismissable()
             .navigationTitle(original == nil ? "New place" : "Edit place")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save", action: save) }
             }
-            .confirmationDialog("Delete place?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    if let id = original?.id { model.library.deletePlace(id) }
-                    dismiss()
-                }
-            } message: {
-                Text("Coupons and memberships linked to \(name) are kept, but you'll no longer be alerted here.")
-            }
             .onAppear(perform: load)
+            .onChange(of: model.permissionsRevision) {
+                guard awaitingPermission, model.regions.authorization != .notDetermined else { return }
+                awaitingPermission = false
+                useCurrentLocation()
+            }
         }
     }
 
@@ -216,8 +229,8 @@ struct PlaceEditView: View {
     private func useCurrentLocation() {
         let status = model.regions.authorization
         if status == .notDetermined {
+            awaitingPermission = true
             model.regions.requestWhenInUse()
-            message = "Allow location access, then tap again."
             return
         }
         guard status == .authorizedAlways || status == .authorizedWhenInUse else {
@@ -233,6 +246,7 @@ struct PlaceEditView: View {
     }
 
     private func save() {
+        guard !saved else { return }
         showErrors = true
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
@@ -246,6 +260,7 @@ struct PlaceEditView: View {
         place.latitude = c.latitude
         place.longitude = c.longitude
         place.radiusMeters = Int(radius)
+        saved = true
         model.library.save(place)
         onSaved(place.id)
         dismiss()
