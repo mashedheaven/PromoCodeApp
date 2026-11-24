@@ -180,6 +180,7 @@ final class AppModel {
                 shown = true
             }
         }
+        regionLog.info("Arrived at \(placeId, privacy: .public): \(String(describing: decision), privacy: .public), shown=\(shown)")
         states[placeId] = ProximityPolicy.stateAfterEnter(states[placeId], decision: decision, shown: shown, now: now)
         prefs.alertStates = states
     }

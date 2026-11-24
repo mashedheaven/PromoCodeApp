@@ -53,7 +53,7 @@ swift test --package-path ios/PromoCodeCore
 
 | | Android | iOS |
 |---|---|---|
-| Geofences | Up to 100 | Up to 20 regions; the nearest 19 plus a refresh region when you have more places |
+| Geofences | Up to 100 | Up to 20 conditions; the nearest 19 plus a refresh condition when you have more places |
 | Reminders | Daily background job | Dated local notifications scheduled ahead (up to 60 pending) |
 | Address search | Android Geocoder | MapKit search (no API key needed) |
 | Map | Google Maps, needs a key | Apple Maps, always available |
@@ -63,3 +63,8 @@ swift test --package-path ios/PromoCodeCore
 Nearby alerts need **Always** location access with **Precise Location** on.
 Settings walks through notifications, location, and then "Always", and sends
 you to the system Settings app when iOS won't ask again.
+
+Geofences use `CLMonitor`. The iOS 27 simulator can't monitor them at all
+(every condition reports `unmonitored`), so test nearby alerts on a real
+iPhone. Region events are logged under the `com.promocodeapp.ios` subsystem,
+category `regions`, so you can follow them in Console.

@@ -1,13 +1,28 @@
 import CoreLocation
 import Foundation
+import OSLog
 import PromoCodeCore
 
-/// Watches store locations with iOS region monitoring. The system wakes the
-/// app on entry and exit even when it isn't running; regions survive restarts.
+let regionLog = Logger(subsystem: "com.promocodeapp.ios", category: "regions")
+
+/// Watches store locations with CLMonitor. The system wakes the app on entry
+/// and exit even when it isn't running, and conditions survive restarts.
+///
+/// CLMonitor replaces CLCircularRegion monitoring, which newer iOS versions
+/// report as unavailable (`isMonitoringAvailable` returns false).
 @MainActor
 final class RegionMonitor: NSObject, CLLocationManagerDelegate {
+    /// iOS hands relaunch events to the monitor with this name, so it must not change.
+    static let monitorName = "PromoCodePlaces"
+
     private let manager = CLLocationManager()
+    private var monitor: CLMonitor?
+    private var monitorStarted = false
     private var desired: [Fence] = []
+    private var applyTask: Task<Void, Never>?
+    /// A CLServiceSession (iOS 18+). Without one requiring Always, CLMonitor
+    /// events aren't delivered while the app isn't in use.
+    private var alwaysSession: AnyObject?
     private var locationWaiters: [CheckedContinuation<CLLocation?, Never>] = []
 
     var onEnter: (String) -> Void = { _ in }
@@ -18,51 +33,107 @@ final class RegionMonitor: NSObject, CLLocationManagerDelegate {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        // Attach at once: after a relaunch for a geofence event, the event is
+        // delivered only once the monitor is recreated and observed. Creating
+        // a monitor prompts for location, so wait until Always is granted.
+        if canMonitor { startMonitorIfNeeded() }
     }
 
     var authorization: CLAuthorizationStatus { manager.authorizationStatus }
     var hasPreciseLocation: Bool { manager.accuracyAuthorization == .fullAccuracy }
-    /// Region monitoring only works with "Always" and precise location.
-    var canMonitor: Bool {
-        authorization == .authorizedAlways && hasPreciseLocation && CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self)
-    }
+    /// Background monitoring needs "Always" and precise location.
+    var canMonitor: Bool { authorization == .authorizedAlways && hasPreciseLocation }
 
     func requestWhenInUse() { manager.requestWhenInUseAuthorization() }
 
     /// iOS shows this prompt only once; afterwards the user changes it in Settings.
     func requestAlways() { manager.requestAlwaysAuthorization() }
 
-    /// Brings the monitored regions in line with [places]; only changes are applied.
+    /// Brings the monitored conditions in line with [places]; only changes are applied.
     func update(places: [Fence]) {
         desired = places
-        guard canMonitor else { return }
+        guard canMonitor else {
+            regionLog.info("Not monitoring \(places.count) places: auth=\(self.authorization.rawValue) precise=\(self.hasPreciseLocation)")
+            return
+        }
+        holdAlwaysSession()
+        startMonitorIfNeeded()
         let origin = manager.location.map { LatLng($0.coordinate.latitude, $0.coordinate.longitude) }
-        let plan = GeofencePlanner.plan(places, origin: origin)
-        apply(plan.all)
+        let fences = GeofencePlanner.plan(places, origin: origin).all
+        // Run updates one after another so overlapping edits can't interleave.
+        let previous = applyTask
+        applyTask = Task { [weak self] in
+            await previous?.value
+            await self?.apply(fences)
+        }
     }
 
-    private func apply(_ fences: [Fence]) {
-        let maxRadius = manager.maximumRegionMonitoringDistance
+    /// Only created once Always is granted, so it never triggers a prompt by itself.
+    private func holdAlwaysSession() {
+        guard alwaysSession == nil, #available(iOS 18.0, *) else { return }
+        alwaysSession = CLServiceSession(authorization: .always)
+    }
+
+    private func startMonitorIfNeeded() {
+        guard !monitorStarted else { return }
+        monitorStarted = true
+        Task { await startMonitor() }
+    }
+
+    private func startMonitor() async {
+        let monitor = await CLMonitor(Self.monitorName)
+        self.monitor = monitor
+        // Anything requested before the monitor existed is applied now.
+        update(places: desired)
+        do {
+            for try await event in await monitor.events {
+                handle(id: event.identifier, state: event.state)
+            }
+        } catch {
+            regionLog.error("Monitor events ended: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func handle(id: String, state: CLMonitor.Event.State) {
+        regionLog.info("State \(String(describing: state), privacy: .public) for \(id, privacy: .public)")
+        let isRefresh = id == GeofencePlanner.refreshFenceId
+        switch state {
+        case .satisfied:
+            // Like Android's INITIAL_TRIGGER_ENTER, a new condition the user is
+            // already inside reports satisfied straight away.
+            if !isRefresh { onEnter(id) }
+        case .unsatisfied:
+            if isRefresh { update(places: desired) } else { onExit(id) }
+        default:
+            break
+        }
+    }
+
+    private func apply(_ fences: [Fence]) async {
+        guard let monitor else { return }  // startMonitor re-applies once it's ready
+        // -1 when the device reports no limit; don't let that shrink every fence.
+        let reported = manager.maximumRegionMonitoringDistance
+        let maxRadius = reported > 0 ? reported : .greatestFiniteMagnitude
         let wanted = Dictionary(fences.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        for region in manager.monitoredRegions {
-            guard let circle = region as? CLCircularRegion, let fence = wanted[region.identifier],
-                  abs(circle.radius - min(fence.radius, maxRadius)) < 1,
-                  abs(circle.center.latitude - fence.center.latitude) < 1e-7,
-                  abs(circle.center.longitude - fence.center.longitude) < 1e-7
-            else {
-                manager.stopMonitoring(for: region)
+
+        for id in await monitor.identifiers {
+            if let fence = wanted[id],
+               let condition = await monitor.record(for: id)?.condition as? CLMonitor.CircularGeographicCondition,
+               abs(condition.radius - min(fence.radius, maxRadius)) < 1,
+               abs(condition.center.latitude - fence.center.latitude) < 1e-7,
+               abs(condition.center.longitude - fence.center.longitude) < 1e-7 {
                 continue
             }
+            await monitor.remove(id)
         }
-        let current = Set(manager.monitoredRegions.map(\.identifier))
+
+        let current = Set(await monitor.identifiers)
         for fence in fences where !current.contains(fence.id) {
-            let region = CLCircularRegion(
+            let condition = CLMonitor.CircularGeographicCondition(
                 center: CLLocationCoordinate2D(latitude: fence.center.latitude, longitude: fence.center.longitude),
-                radius: min(fence.radius, maxRadius), identifier: fence.id)
-            let isRefresh = fence.id == GeofencePlanner.refreshFenceId
-            region.notifyOnEntry = !isRefresh
-            region.notifyOnExit = true
-            manager.startMonitoring(for: region)
+                radius: min(fence.radius, maxRadius))
+            await monitor.add(condition, identifier: fence.id)
+            regionLog.info("Monitoring \(fence.id, privacy: .public) radius \(condition.radius)")
         }
     }
 
@@ -88,34 +159,6 @@ final class RegionMonitor: NSObject, CLLocationManagerDelegate {
             update(places: desired)
             onAuthorizationChange()
         }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didStartMonitoringFor region: CLRegion) {
-        // Like Android's INITIAL_TRIGGER_ENTER: alert if already inside a new region.
-        manager.requestState(for: region)
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
-        let id = region.identifier
-        MainActor.assumeIsolated {
-            if state == .inside && id != GeofencePlanner.refreshFenceId { onEnter(id) }
-        }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        let id = region.identifier
-        MainActor.assumeIsolated { if id != GeofencePlanner.refreshFenceId { onEnter(id) } }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        let id = region.identifier
-        MainActor.assumeIsolated {
-            if id == GeofencePlanner.refreshFenceId { update(places: desired) } else { onExit(id) }
-        }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
-        // Usually a transient system condition; the next update retries.
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
