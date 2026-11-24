@@ -35,7 +35,7 @@ jobs:
 
       # Robolectric downloads a ~200 MB Android framework jar on first use.
       - name: Cache Robolectric framework jars
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2/repository/org/robolectric
           key: robolectric-${{ hashFiles('PromoCodeApp/gradle/libs.versions.toml', 'PromoCodeApp/app/src/test/resources/robolectric.properties') }}
