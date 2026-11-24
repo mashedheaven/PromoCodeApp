@@ -31,7 +31,7 @@ jobs:
           java-version: 17
 
       # Caches Gradle dependencies and verifies the wrapper jar.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Robolectric downloads a ~200 MB Android framework jar on first use.
       - name: Cache Robolectric framework jars
