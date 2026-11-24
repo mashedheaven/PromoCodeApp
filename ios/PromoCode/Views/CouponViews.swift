@@ -31,7 +31,7 @@ struct CouponListView: View {
                 }
                 ForEach(rows) { coupon in
                     NavigationLink(value: CouponRoute.detail(coupon.id)) {
-                        CouponRow(coupon: coupon, today: today, placeNames: coupon.placeIds.compactMap { placeNames[$0] })
+                        CouponRowView(coupon: coupon, today: today, placeNames: coupon.placeIds.compactMap { placeNames[$0] })
                     }
                     .swipeActions(edge: .leading) {
                         Button { model.library.setFavorite(coupon.id, !coupon.isFavorite) } label: {
@@ -124,7 +124,7 @@ private struct AlertsBanner: View {
     }
 }
 
-struct CouponRow: View {
+struct CouponRowView: View {
     let coupon: Coupon
     let today: Day
     let placeNames: [String]
