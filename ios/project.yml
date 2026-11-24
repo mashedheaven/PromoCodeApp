@@ -1,0 +1,65 @@
+# Generates PromoCode.xcodeproj. Run `xcodegen generate` in this folder
+# (install with `brew install xcodegen`), then open PromoCode.xcodeproj.
+name: PromoCode
+options:
+  bundleIdPrefix: com.promocodeapp
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+configFiles:
+  Debug: Config/App.xcconfig
+  Release: Config/App.xcconfig
+packages:
+  PromoCodeCore:
+    path: PromoCodeCore
+targets:
+  PromoCode:
+    type: application
+    platform: iOS
+    sources:
+      - path: PromoCode
+    dependencies:
+      - package: PromoCodeCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.promocodeapp.ios
+        PRODUCT_NAME: PromoCode
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
+    info:
+      path: PromoCode/Info.plist
+      properties:
+        CFBundleDisplayName: PromoCode
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        ITSAppUsesNonExemptEncryption: false
+        NSLocationWhenInUseUsageDescription: "Used to pin a store's location when you save it."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "Lets PromoCode remind you about coupons when you arrive at a store, even when the app is closed. Your location stays on your iPhone."
+        NSCameraUsageDescription: "Used to scan coupon barcodes and QR codes."
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.promocodeapp.ios.refresh]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.promocodeapp.ios
+            CFBundleURLSchemes: [promocode]
+        # Filled from Config/Secrets.xcconfig; blank means local-only mode.
+        SupabaseHost: $(SUPABASE_HOST)
+        SupabaseAnonKey: $(SUPABASE_ANON_KEY)
+schemes:
+  PromoCode:
+    build:
+      targets:
+        PromoCode: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: PromoCodeCore/PromoCodeCoreTests
