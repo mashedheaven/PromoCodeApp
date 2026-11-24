@@ -5,6 +5,7 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import androidx.core.content.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +57,7 @@ class EncryptedSessionStore @Inject constructor(
     override fun set(session: Session?) {
         state.value = session
         if (session == null) {
-            prefs.edit().remove(KEY).apply()
+            prefs.edit { remove(KEY) }
             return
         }
         runCatching {
@@ -64,7 +65,7 @@ class EncryptedSessionStore @Inject constructor(
             val encrypted = cipher.doFinal(Json.encodeToString(Session.serializer(), session).toByteArray())
             val blob = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
                 Base64.encodeToString(encrypted, Base64.NO_WRAP)
-            prefs.edit().putString(KEY, blob).apply()
+            prefs.edit { putString(KEY, blob) }
         }.onFailure { Log.w(TAG, "Could not persist session; it will last until the app restarts", it) }
     }
 
@@ -77,7 +78,7 @@ class EncryptedSessionStore @Inject constructor(
             Json.decodeFromString(Session.serializer(), String(cipher.doFinal(data)))
         }.onFailure {
             // Key lost (e.g. restored onto another device): treat as signed out.
-            prefs.edit().remove(KEY).apply()
+            prefs.edit { remove(KEY) }
         }.getOrNull()
     }
 

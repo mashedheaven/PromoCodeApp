@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an in-progress run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, test and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: PromoCodeApp
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Caches Gradle dependencies and verifies the wrapper jar.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Robolectric downloads a ~200 MB Android framework jar on first use.
+      - name: Cache Robolectric framework jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('PromoCodeApp/gradle/libs.versions.toml', 'PromoCodeApp/app/src/test/resources/robolectric.properties') }}
+
+      # The runner's preinstalled Android SDK is used; AGP fetches any missing
+      # platform. No secrets are needed: sync and maps stay disabled in CI.
+      - name: Lint
+        run: ./gradlew :app:lintDebug
+
+      - name: Unit, integration and UI tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Build debug and release
+        run: ./gradlew :app:assembleDebug :app:assembleRelease
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            PromoCodeApp/app/build/reports
+            PromoCodeApp/app/build/test-results
+          retention-days: 7
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: PromoCodeApp/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  ios:
+    name: iOS build and tests
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Core tests (PromoCodeCore)
+        run: swift test --package-path PromoCodeCore
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      # No signing in CI: this checks the app compiles for the simulator.
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project PromoCode.xcodeproj -scheme PromoCode -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      # Surfaces each compiler error on the pull request's Files tab.
+      - name: Report compiler errors
+        if: failure()
+        run: |
+          grep -E "^/.+:[0-9]+:[0-9]+: error: " build.log | sort -u | head -50 | \
+            sed -E "s#^$GITHUB_WORKSPACE/##; s#^([^:]+):([0-9]+):([0-9]+): error: (.*)#::error file=\1,line=\2,col=\3::\4#"

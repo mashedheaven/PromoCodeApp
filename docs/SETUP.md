@@ -23,6 +23,11 @@ which is handy for CI.
    confirm their e-mail. The app handles both: it asks the user to confirm and then sign in.
 5. Rebuild. **Settings → Backup & sync** now offers sign in.
 
+For the iPhone app, put the same values in `ios/Config/Secrets.xcconfig`
+(copy `Secrets.example.xcconfig`). Use the host only, e.g.
+`SUPABASE_HOST = abcdefghijklmnop.supabase.co`, because xcconfig files treat
+`//` as a comment. Both apps use the same tables and can share an account.
+
 The `anon` key is meant to ship in apps: row-level security in the schema means
 a user can only read and write their own rows, and anonymous requests see nothing.
 Never put the `service_role` key in the app.
