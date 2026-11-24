@@ -9,16 +9,16 @@ struct RootView: View {
         TabView(selection: $router.tab) {
             CouponListView()
                 .tabItem { Label("Coupons", systemImage: "tag") }
-                .tag(Tab.coupons)
+                .tag(AppTab.coupons)
             MembershipListView()
                 .tabItem { Label("Memberships", systemImage: "person.text.rectangle") }
-                .tag(Tab.memberships)
+                .tag(AppTab.memberships)
             PlaceListView()
                 .tabItem { Label("Places", systemImage: "mappin.and.ellipse") }
-                .tag(Tab.places)
+                .tag(AppTab.places)
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
-                .tag(Tab.settings)
+                .tag(AppTab.settings)
         }
     }
 }

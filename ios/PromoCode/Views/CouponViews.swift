@@ -412,7 +412,7 @@ struct CouponEditView: View {
         category = c.category
         notes = c.notes ?? ""
         hasExpiry = c.expiresOn != nil
-        expiresOn = c.expiresOn?.date ?? Date()
+        expiresOn = c.expiresOn?.noonDate ?? Date()
         if let b = c.barcode { barcode = ScannedCode(value: b, format: c.barcodeFormat) }
         placeIds = c.placeIds
     }

@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import PromoCodeCore
 
-enum Tab: Hashable { case coupons, memberships, places, settings }
+enum AppTab: Hashable { case coupons, memberships, places, settings }
 
 enum CouponRoute: Hashable { case detail(String) }
 
@@ -10,7 +10,7 @@ enum CouponRoute: Hashable { case detail(String) }
 @MainActor
 @Observable
 final class Router {
-    var tab: Tab = .coupons
+    var tab: AppTab = .coupons
     var couponPath: [CouponRoute] = []
     /// Narrows the coupon list to one place (from a nearby alert).
     var placeFilter: String?

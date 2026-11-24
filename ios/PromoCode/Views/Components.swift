@@ -8,10 +8,10 @@ import VisionKit
 
 extension Day {
     /// Noon avoids the date shifting when converting across time zones.
-    var date: Date { date(hour: 12, in: .current) }
+    var noonDate: Date { date(hour: 12, in: .current) }
     init(date: Date) { self.init(date, in: .current) }
 
-    var mediumText: String { date.formatted(date: .abbreviated, time: .omitted) }
+    var mediumText: String { noonDate.formatted(date: .abbreviated, time: .omitted) }
 }
 
 extension Expiry {

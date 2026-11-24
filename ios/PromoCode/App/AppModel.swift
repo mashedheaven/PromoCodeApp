@@ -30,9 +30,12 @@ final class AppModel {
     private(set) var isSyncing = false
     private(set) var permissionsRevision = 0
 
+    private var storedSettings: Settings
     var settings: Settings {
-        didSet {
-            prefs.settings = settings
+        get { storedSettings }
+        set {
+            storedSettings = newValue.clamped()
+            prefs.settings = storedSettings
             scheduleRefresh()
         }
     }
@@ -43,13 +46,13 @@ final class AppModel {
             store = try SwiftDataStore()
         } catch {
             // A damaged database must not stop the app from opening.
-            store = (try? SwiftDataStore(inMemory: true)) ?? InMemoryStore()
+            if let memory = try? SwiftDataStore(inMemory: true) { store = memory } else { store = InMemoryStore() }
         }
         library = Library(store: store)
         let client = SupabaseClient(config: .fromBundle, sessions: sessions)
         sync = SyncEngine(client: client, store: store, keys: prefs)
         accounts = AccountManager(client: client, store: store, keys: prefs)
-        settings = prefs.settings
+        storedSettings = prefs.settings
         session = sessions.session
         lastSyncAt = sync.lastSyncAt
 

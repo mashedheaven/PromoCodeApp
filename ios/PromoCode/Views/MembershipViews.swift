@@ -203,7 +203,7 @@ struct MembershipEditView: View {
         billing = m.billingCycle
         fee = m.fee.map { $0.truncatingRemainder(dividingBy: 1) == 0 ? String(Int($0)) : String($0) } ?? ""
         hasRenewal = m.renewsOn != nil
-        renewsOn = m.renewsOn?.date ?? Date()
+        renewsOn = m.renewsOn?.noonDate ?? Date()
         reminderDays = m.reminderDays
         notes = m.notes ?? ""
         isActive = m.isActive
